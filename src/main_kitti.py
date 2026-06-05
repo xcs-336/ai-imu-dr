@@ -12,9 +12,11 @@ from termcolor import cprint
 from navpy import lla2ned
 from collections import OrderedDict
 from dataset import BaseDataset
-from utils_torch_filter import TORCHIEKF
+# Dynamic model loading will be handled in train_filter
 from utils_numpy_filter import NUMPYIEKF as IEKF
 from utils import prepare_data
+# Import training module (model will be loaded dynamically)
+import train_torch_filter
 from train_torch_filter import train_filter
 from utils_plot import results_filter
 
@@ -169,7 +171,7 @@ class KITTIDataset(BaseDataset):
                 """
 
                 print("\n Sequence name : " + date_dir2)
-                if len(oxts) < KITTIDataset.min_seq_dim:  #  sequence shorter than 30 s are rejected
+                if len(oxts) < KITTIDataset.min_seq_dim:  #  sequence shorter than 30 s are rejected
                     cprint("Dataset is too short ({:.2f} s)".format(len(oxts) / 100), 'yellow')
                     continue
                 lat_oxts = np.zeros(len(oxts))
@@ -417,6 +419,11 @@ class KITTIDataset(BaseDataset):
 
 def test_filter(args, dataset):
     iekf = IEKF()
+    
+    # Load TORCHIEKF dynamically based on config
+    config_name = getattr(args, 'config', 'dynamic_standard')
+    TORCHIEKF, model_type, config = train_torch_filter.load_model_for_config(config_name)
+    
     torch_iekf = TORCHIEKF()
 
     # put Kitti parameters
@@ -475,10 +482,43 @@ class KITTIArgs():
         results_filter = 1
         dataset_class = KITTIDataset
         parameter_class = KITTIParameters
+        
+        # Default config (can be overridden by command line)
+        config = 'dynamic_standard'
 
 
 if __name__ == '__main__':
-    args = KITTIArgs()
-    dataset = KITTIDataset(args)
-    launch(KITTIArgs)
-
+    import sys
+    
+    # Check if command line arguments are provided
+    if len(sys.argv) > 1:
+        # Parse command line arguments using train_torch_filter's parser
+        cmd_args = train_torch_filter.parse_args()
+        
+        # Update KITTIArgs with command line values
+        args = KITTIArgs()
+        args.config = cmd_args.config
+        args.epochs = cmd_args.epochs
+        args.seq_dim = cmd_args.seq_dim
+        args.continue_training = not cmd_args.no_continue
+        args.train_filter = cmd_args.train
+        args.test_filter = cmd_args.test
+        args.results_filter = cmd_args.results
+        args.read_data = cmd_args.read_data
+        
+        if cmd_args.path_data_base:
+            args.path_data_base = cmd_args.path_data_base
+        if cmd_args.path_data_save:
+            args.path_data_save = cmd_args.path_data_save
+        if cmd_args.path_results:
+            args.path_results = cmd_args.path_results
+        if cmd_args.path_temp:
+            args.path_temp = cmd_args.path_temp
+        
+        dataset = KITTIDataset(args)
+        launch(args)
+    else:
+        # Use default KITTIArgs
+        args = KITTIArgs()
+        dataset = KITTIDataset(args)
+        launch(args)

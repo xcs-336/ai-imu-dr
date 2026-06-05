@@ -5,7 +5,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from itertools import chain
 from utils import *
-from utils_torch_filter import TORCHIEKF
+import torch
+
+# Dynamically import TORCHIEKF based on available models
+# Try to import from the most general module first
+# try:
+#     from utils_torch_filter import TORCHIEKF
+# except ImportError:
+#     try:
+#         from utils_torch_filter_winattn import TORCHIEKF
+#     except ImportError:
+#         from utils_torch_filter_dynwinattn import TORCHIEKF
+from utils_torch_iekf_base import TORCHIEKF
 
 def results_filter(args, dataset):
 
