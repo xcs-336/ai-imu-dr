@@ -138,15 +138,9 @@ def monitor_window_statistics(iekf, epoch, path_temp):
     """Monitor and log window statistics for dynamic window attention model."""
     if hasattr(iekf.mes_net, 'dynamic_attention'):
         dyn_attn = iekf.mes_net.dynamic_attention
-        cprint("Window stats (epoch {}): range [{}, {}], heads: {}, T={:.1f}, scale={:.1f}".format(
+        cprint("Window stats (epoch {}): range [{}, {}], heads: {}, T={:.1f}, scale={:.1f}, reg={:.3f}".format(
             epoch, dyn_attn.min_window, dyn_attn.max_window, dyn_attn.num_heads,
-            dyn_attn.temperature, dyn_attn.suppression_scale), 'cyan')
-        # Log window predictor grad status to verify it's learning
-        wp = dyn_attn.window_predictor
-        first_weight = wp.predictor[0].weight
-        has_grad = first_weight.grad is not None
-        grad_norm = first_weight.grad.norm().item() if has_grad else 0.0
-        cprint("  WindowPredictor grad norm: {:.6f}  (has_grad: {})".format(grad_norm, has_grad), 'cyan')
+            dyn_attn.temperature, dyn_attn.suppression_scale, 1e-2), 'cyan')
 
 def train_filter(args, dataset):
     iekf = prepare_filter(args, dataset)
@@ -375,7 +369,7 @@ def mini_batch_step(dataset, dataset_name, iekf, list_rpe, t, ang_gt, p_gt, v_gt
         ew = iekf._last_expected_windows
         dyn_attn = iekf.mes_net.dynamic_attention
         min_w, max_w = dyn_attn.min_window, dyn_attn.max_window
-        reg = 1e-4 * ((ew - min_w) / (max_w - min_w)).mean()
+        reg = 1e-2 * ((ew - min_w) / (max_w - min_w)).mean()
         loss = loss + reg
 
     return loss
