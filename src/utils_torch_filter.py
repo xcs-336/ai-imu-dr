@@ -29,14 +29,12 @@ class InitProcessCovNet(torch.nn.Module):
             return
 
         def init_cov(self, iekf):
-            device = self.factor_initial_covariance.weight.device
-            alpha = self.factor_initial_covariance(torch.ones(1, device=device).double()).squeeze()
+            alpha = self.factor_initial_covariance(torch.ones(1).double()).squeeze()
             beta = 10**(self.tanh(alpha))
             return beta
 
         def init_processcov(self, iekf):
-            device = self.factor_process_covariance.weight.device
-            alpha = self.factor_process_covariance(torch.ones(1, device=device).double())
+            alpha = self.factor_process_covariance(torch.ones(1).double())
             beta = 10**(self.tanh(alpha))
             return beta
 

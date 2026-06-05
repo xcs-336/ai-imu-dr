@@ -17,22 +17,7 @@ from utils import prepare_data
 # Import base TORCHIEKF class
 from utils_torch_iekf_base import TORCHIEKF
 
-# Device configuration (set dynamically from args, default to auto-detect)
-_device = None
-
-
-def get_device(args=None):
-    """Get device from args or auto-detect."""
-    global _device
-    if args is not None:
-        _device = torch.device(args.device)
-        cprint(f"Using device: {_device}", 'cyan')
-        if _device.type == 'cuda':
-            cprint(f"GPU: {torch.cuda.get_device_name(_device.index or 0)}", 'cyan')
-            cprint(f"CUDA version: {torch.version.cuda}", 'cyan')
-    elif _device is None:
-        _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    return _device
+# CPU-only mode
 
 
 def load_model_for_config(config_name):
@@ -65,8 +50,8 @@ def load_model_for_config(config_name):
 
     # Wrap MesNet to pass it to TORCHIEKF
     class ConfiguredTORCHIEKF(TORCHIEKF):
-        def __init__(self, parameter_class=None, device=None):
-            super().__init__(parameter_class=parameter_class, mes_net_class=MesNetWithParams, device=device)
+        def __init__(self, parameter_class=None):
+            super().__init__(parameter_class=parameter_class, mes_net_class=MesNetWithParams)
     
     return ConfiguredTORCHIEKF, model_type, config
 
@@ -165,8 +150,6 @@ def monitor_window_statistics(iekf, epoch, path_temp):
         cprint("  WindowPredictor grad norm: {:.6f}  (has_grad: {})".format(grad_norm, has_grad), 'cyan')
 
 def train_filter(args, dataset):
-    # Initialize device from args
-    get_device(args)
     iekf = prepare_filter(args, dataset)
     prepare_loss_data(args, dataset)
     save_iekf(args, iekf)
@@ -196,13 +179,12 @@ def prepare_filter(args, dataset):
     # MesNetClass is already ConfiguredTORCHIEKF (subclass of TORCHIEKF with MesNet wired in)
     iekf = MesNetClass(
         parameter_class=args.parameter_class,
-        device=get_device(args)  # Pass device to model
     )
 
     # set dataset parameter (already set in __init__ if parameter_class is provided)
     # But we need to convert g to torch tensor if it's numpy
     if type(iekf.g).__module__ == np.__name__:
-        iekf.g = torch.from_numpy(iekf.g).double().to(get_device(args))
+        iekf.g = torch.from_numpy(iekf.g).double()
 
     # load model
     if args.continue_training:
@@ -424,11 +406,11 @@ def prepare_data_filter(dataset, dataset_name, Ns, iekf, seq_dim):
 
     # subsample data
     N0, N = get_start_and_end(seq_dim, u)
-    t = t[N0: N].double().to(get_device())
-    ang_gt = ang_gt[N0: N].double().to(get_device())
-    p_gt = (p_gt[N0: N] - p_gt[N0]).double().to(get_device())
-    v_gt = v_gt[N0: N].double().to(get_device())
-    u = u[N0: N].double().to(get_device())
+    t = t[N0: N].double()
+    ang_gt = ang_gt[N0: N].double()
+    p_gt = (p_gt[N0: N] - p_gt[N0]).double()
+    v_gt = v_gt[N0: N].double()
+    u = u[N0: N].double()
 
     # add noise
     if iekf.mes_net.training:
@@ -497,11 +479,6 @@ def parse_args():
     parser.add_argument('--no-continue', action='store_true',
                         help='Do not continue from previous checkpoint')
     
-    # Device
-    parser.add_argument('--device', type=str, default='cuda',
-                        choices=['cpu', 'cuda', 'cuda:0', 'cuda:1'],
-                        help='Device to run on (default: cuda)')
-
     # What to do
     parser.add_argument('--train', action='store_true',
                         help='Train the filter')

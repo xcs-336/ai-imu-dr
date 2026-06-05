@@ -505,7 +505,6 @@ if __name__ == '__main__':
         args.test_filter = cmd_args.test
         args.results_filter = cmd_args.results
         args.read_data = cmd_args.read_data
-        args.device = getattr(cmd_args, 'device', 'cuda')
 
         if cmd_args.path_data_base:
             args.path_data_base = cmd_args.path_data_base
