@@ -73,6 +73,9 @@ class TORCHIEKF(torch.nn.Module, NUMPYIEKF):
         if parameter_class is not None:
             self.filter_parameters = parameter_class()
             self.set_param_attr()
+            # convert numpy arrays to torch tensors (CPU mode)
+            if isinstance(self.g, np.ndarray):
+                self.g = torch.from_numpy(self.g).double()
     
     def _manual_numpy_iekf_init(self):
         """Manually initialize NUMPYIEKF attributes to avoid premature set_param_attr call"""

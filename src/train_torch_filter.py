@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from termcolor import cprint
 import argparse
-import copy
 from functools import partial
 
 # Import configuration presets
@@ -165,6 +164,7 @@ def train_filter(args, dataset):
             monitor_window_statistics(iekf, epoch, args.path_temp)
         
         print("Amount of time spent for 1 epoch: {}s\n".format(int(time.time() - start_time)))
+        import gc; gc.collect()
         start_time = time.time()
 
 
@@ -246,6 +246,7 @@ def prepare_loss_data(args, dataset):
             ang_k = ang_gt[k]
             Rot_gt[k] = TORCHIEKF.from_rpy(ang_k[0], ang_k[1], ang_k[2]).double()
         list_rpe[dataset_name] = compute_delta_p(Rot_gt[:N_end], p_gt[:N_end])
+        del Rot_gt
 
     list_rpe_validation = {}
     for dataset_name, Ns in dataset.datasets_validatation_filter.items():
@@ -259,10 +260,10 @@ def prepare_loss_data(args, dataset):
             ang_k = ang_gt[k]
             Rot_gt[k] = TORCHIEKF.from_rpy(ang_k[0], ang_k[1], ang_k[2]).double()
         list_rpe_validation[dataset_name] = compute_delta_p(Rot_gt[:N_end], p_gt[:N_end])
+        del Rot_gt
     
-    list_rpe_ = copy.deepcopy(list_rpe)
     dataset.list_rpe = {}
-    for dataset_name, rpe in list_rpe_.items():
+    for dataset_name, rpe in list_rpe.items():
         if len(rpe[0]) != 0:  # 修复：使用 != 而不是 is not
             dataset.list_rpe[dataset_name] = list_rpe[dataset_name]
         else:
@@ -270,9 +271,8 @@ def prepare_loss_data(args, dataset):
             list_rpe.pop(dataset_name)
             cprint("%s has too much dirty data, it's removed from training list" % dataset_name, 'yellow')
 
-    list_rpe_validation_ = copy.deepcopy(list_rpe_validation)
     dataset.list_rpe_validation = {}
-    for dataset_name, rpe in list_rpe_validation_.items():
+    for dataset_name, rpe in list_rpe_validation.items():
         if len(rpe[0]) != 0:  # 修复：使用 != 而不是 is not
             dataset.list_rpe_validation[dataset_name] = list_rpe_validation[dataset_name]
         else:
@@ -314,7 +314,7 @@ def train_loop(args, dataset, epoch, iekf, optimizer, seq_dim):
         loss = mini_batch_step(dataset, dataset_name, iekf,
                                dataset.list_rpe[dataset_name], t, ang_gt, p_gt, v_gt, u, N0)
 
-        if loss == -1 or torch.isnan(loss):  # 修复：使用 == 而不是 is
+        if loss == -1 or torch.isnan(loss):  # fix: use == not is
             cprint("{} loss is invalid".format(i), 'yellow')
             continue
         elif loss > max_loss:
@@ -322,11 +322,13 @@ def train_loop(args, dataset, epoch, iekf, optimizer, seq_dim):
             continue
         else:
             loss_train += loss
+            # Backward immediately to free intermediate computation graph
+            loss.backward()
+            del t, ang_gt, p_gt, v_gt, u, loss
 
     if loss_train == 0:
         cprint("All losses are invalid in this batch", 'yellow')
-        return 
-    loss_train.backward()
+        return
 
     # Debug: verify WindowPredictor gradient flows through soft mask
     if MODEL_TYPE == 'dynamic_window' and hasattr(iekf.mes_net, 'dynamic_attention'):
