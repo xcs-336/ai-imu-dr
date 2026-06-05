@@ -322,13 +322,11 @@ def train_loop(args, dataset, epoch, iekf, optimizer, seq_dim):
             continue
         else:
             loss_train += loss
-            # Backward immediately to free intermediate computation graph
-            loss.backward()
-            del t, ang_gt, p_gt, v_gt, u, loss
 
     if loss_train == 0:
         cprint("All losses are invalid in this batch", 'yellow')
         return
+    loss_train.backward()
 
     # Debug: verify WindowPredictor gradient flows through soft mask
     if MODEL_TYPE == 'dynamic_window' and hasattr(iekf.mes_net, 'dynamic_attention'):
